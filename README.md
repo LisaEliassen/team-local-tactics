@@ -1,4 +1,7 @@
 # team-local-tactics
 A game for the mandatory assignment
 
-Test
+Team consists of:
+Olesya Pasichnyk
+Lisa Maria Eliassen
+Thomas Ulseth 
