@@ -13,14 +13,15 @@ class ChatServer:
         self._port = port
         self._buffer_size = buffer_size
         self._players = ["Red", "Blue"]
+        self._blue_champs = []
+        self._red_champs = []
         self._connections = {}
         self._player_lock = Lock()
         self._connections_lock = Lock()
 
     def turn_on(self):
         self._welcome_sock = create_server(
-            (self._host, self._port),
-            reuse_port=True
+            (self._host, self._port)
         )
         self._welcome_sock.settimeout(5)
         self._serving = True
@@ -86,22 +87,30 @@ class ChatServer:
         #conn.sendall(available_champs)
 
         while self._serving:
-            if message := conn.recv(self._buffer_size):
-                self._send_from_player(player, message)
+            if choice := conn.recv(self._buffer_size):
+                self._choose_champions(player, choice)
             else:
                 break
         del self._connections[player]
 
-    def _send_from_player(self, player, message):
+    def _choose_champions(self, player, choice):
+        if player == "Blue":
+            self._blue_champs.append(choice)
+
+        elif player == "Red":
+            self._red_champs.append(choice)
+
+        """
         with self._connections_lock:
             for key in self._connections:
-                if key != player:
+                if key == player:
                     try:
                         self._connections[key].sendall(
-                            player.encode() + b"| " + message
+                            player.encode() + b"| " + choice
                         )
                     except:
                         del self._connections[key]
+            """
 
 
 if __name__ == "__main__":
