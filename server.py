@@ -6,15 +6,15 @@ from rich import print
 import TLT as TLT
 
 
-class ChatServer:
+class Server:
 
     def __init__(self, host: str, port: int, buffer_size: int = 2048):
         self._host = host
         self._port = port
         self._buffer_size = buffer_size
         self._players = ["Red", "Blue"]
-        self._blue_champs = []
-        self._red_champs = []
+        self._champion_choices = {"Red": [], "Blue": []}
+        self._champion_choice_lock = Lock()
         self._connections = {}
         self._player_lock = Lock()
         self._connections_lock = Lock()
@@ -66,54 +66,33 @@ class ChatServer:
     def _choose_team(self, conn, player):
         with self._player_lock:
             if player in self._players:
+                if player in self._connections.keys():
+                    conn.sendall(f"Team {player} has already been chosen.".encode())
+                    return False
                 print(f"Player {player} has joined.")
-                #conn.sendall("Joined".encode())
+                conn.sendall("Joined".encode())
+                response = conn.recv(self._buffer_size).decode()
+                while response != "Ok":
+                    response = conn.recv(self._buffer_size).decode()
                 return True
             conn.sendall("Invalid team".encode())
             return False
 
     def _handle_user(self, conn, player):
-
-        champions = load_some_champs()
-        available_champs = TLT.available_champs(champions)
-        welcome_msg = '\n' \
-                      + 'Welcome to [bold yellow]Team Local Tactics[/bold yellow]!' \
-                      + '\n' \
-                      + 'Each player choose a champion each time.' \
-                      + '\n'
-
-        # TO-DO: Use pickle to convert Rich Table into bit strings:
-        #conn.sendall(welcome_msg.encode())
-        #conn.sendall(available_champs)
-
-        while self._serving:
+        while self._serving and len(self._champion_choices[player]) < 2:
             if choice := conn.recv(self._buffer_size):
                 self._choose_champions(player, choice)
             else:
                 break
+        #print(self._champion_choices[player])
         del self._connections[player]
 
     def _choose_champions(self, player, choice):
-        if player == "Blue":
-            self._blue_champs.append(choice)
-
-        elif player == "Red":
-            self._red_champs.append(choice)
-
-        """
-        with self._connections_lock:
-            for key in self._connections:
-                if key == player:
-                    try:
-                        self._connections[key].sendall(
-                            player.encode() + b"| " + choice
-                        )
-                    except:
-                        del self._connections[key]
-            """
+        with self._champion_choice_lock:
+            self._champion_choices[player].append(choice)
 
 
 if __name__ == "__main__":
     host = environ.get("HOST", "localhost")
-    server = ChatServer(host, 5550)
+    server = Server(host, 5550)
     server.turn_on()
