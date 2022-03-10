@@ -1,11 +1,8 @@
 from os import environ
-from queue import Queue
 from socket import create_connection, timeout
-
-import TLT
 from champlistloader import load_some_champs
-from threading import Thread
 from rich import print
+import TLT
 
 
 class Client:
@@ -13,20 +10,20 @@ class Client:
     def __init__(self, server: str, buffer_size: int = 2048) -> None:
         self._server = server
         self._buffer_size = buffer_size
-        self._messages = Queue()
         self._champs = []
 
     def start(self):
+        #self._sock = create_connection((self._server, 5550))
+
         if self._choose_team():
-            self._sock.sendall("Ok".encode())
+            self._sock.sendall("Team chosen".encode())
             response = self._sock.recv(self._buffer_size).decode()
             while response != "Both players have joined":
                 response = self._sock.recv(self._buffer_size).decode()
             print(response)
             self._playing = True
-            #Thread(target=self._recv).start()
             if self._choose_champions():
-                pass
+                self._game_result()
             else:
                 self._playing = False
                 self._sock.close()
@@ -35,13 +32,19 @@ class Client:
         print("Choosing team...")
         print("Red or Blue? \n")
         while player := input("Player: "):
-            message = player
             self._sock = create_connection((self._server, 5550))
-            self._sock.sendall(message.encode())
+            self._sock.sendall("Player".encode())
+            response = self._sock.recv(self._buffer_size).decode()
+            while response != "Choose team":
+                response = self._sock.recv(self._buffer_size).decode()
+
+            player_choice = player
+            self._sock.sendall(player_choice.encode())
             response = self._sock.recv(self._buffer_size).decode()
             print(response)
             if response != "Invalid team" and response != f"Team {player} has already been chosen.":
                 return True
+            #self._sock = create_connection((self._server, 5550))
         return False
 
     def _choose_champions(self) -> bool:
@@ -54,35 +57,30 @@ class Client:
                       + '\n'
         print(welcome_msg)
         print(available_champs)
+        print(champions)
 
-        while (choice1 := input("Champion choice 1:")).lower() != ".exit":
-            if choice1 in champions.keys():
-                self._sock.sendall(choice1.encode())
+        # CHAMPION CHOICE 1:
+        while (choice1 := input("Champion choice 1 of 2:")).lower() != ".exit":
+            self._sock.sendall(choice1.encode())
+            response = self._sock.recv(self._buffer_size).decode()
+            if response == "Valid champion choice":
 
-                while (choice2 := input("Champion choice 2:")).lower() != ".exit":
-                    if choice2 in champions.keys():
-                        self._sock.sendall(choice2.encode())
+                # CHAMPION CHOICE 2:
+                while (choice2 := input("Champion choice 2 of 2:")).lower() != ".exit":
+                    self._sock.sendall(choice2.encode())
+                    if response == "Valid champion choice":
                         return True
-                    else:
-                        print("Not a valid champion!")
-            else:
-                print("Not a valid champion!")
+                    elif response == "Invalid champion choice":
+                        print("Invalid champion or champion is already taken.")
 
+            elif response == "Invalid champion choice":
+                print("Invalid champion or champion is already taken.")
         return False
 
-    def _recv(self):
-        while self._playing:
-            try:
-                data = self._sock.recv(2048)
-            except timeout:
-                pass
-            except:
-                break
-            else:
-                if data:
-                    self._messages.put(data.decode())
-                else:
-                    break
+    def _game_result(self):
+        response = self._sock.recv(self._buffer_size).decode()
+        while response == "Result ready":
+            pass
 
 
 if __name__ == "__main__":
