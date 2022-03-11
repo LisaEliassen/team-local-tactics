@@ -32,7 +32,6 @@ class Client:
                 while response != "Both players are ready":
                     response = self._sock.recv(self._buffer_size).decode()
 
-                #self._playing = True
                 if self._choose_champions():
                     self._game_result()
                 else:
@@ -150,10 +149,6 @@ class Client:
         print(f"\nMATCH RESULTS:\n")
         TLT.print_match_summary(match)
 
-        """
-        self._sock.sendall("Ready to shut down".encode())
-        self._sock.close()
-        """
 
 if __name__ == "__main__":
     server = environ.get("SERVER", "localhost")

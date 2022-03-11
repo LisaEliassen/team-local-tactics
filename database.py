@@ -24,6 +24,7 @@ class Database:
                 case "Get champion info":
                     self._sock.sendall(self.champion_info().encode())
                 case "Get match history":
+                    # Did not have time for this implementation.
                     continue
                 case "Add match to match history":
                     self._sock.sendall("Ready for match".encode())

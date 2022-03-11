@@ -34,6 +34,7 @@ class Server:
     def shut_down(self):
         self._serving = False
         self._connections["Database"].sendall("Shut down".encode())
+        del self._connections["Database"]
         self._server_sock.close()
 
     @property
@@ -49,10 +50,10 @@ class Server:
     def _accept(self):
         while self._serving:
             try:
-                conn, _ = self._server_sock.accept()  # establishes connection
+                conn, _ = self._server_sock.accept()
             except timeout:
                 pass
-            else:  # because of while loop, "second" time with the same conn value will go to else stmt (instead of try block)
+            else:
                 Thread(target=self._check_client_type, args=(conn,)).start()
 
     def _check_client_type(self, conn):
@@ -202,13 +203,13 @@ class Server:
 
         with self._match_lock:
 
-            if self._match_sem == 0:  # for "first" player
+            if self._match_sem == 0:
                 champion_info_dict = TLT.champ_string_to_dict(self._get_champion_info())
                 match = TLT.match(self._champion_choices["Red"], self._champion_choices["Blue"], champion_info_dict)
                 self._send_match(match)
                 self._match_sem = 1
 
-            elif self._match_sem == 1:  # for "second" player
+            elif self._match_sem == 1:
                 match = self._get_latest_match()
                 self._match_sem = 0
 
