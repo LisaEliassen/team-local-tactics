@@ -5,6 +5,7 @@ from rich import print
 import TLT as TLT
 import pickle
 
+
 class Server:
 
     def __init__(self, host: str, port: int, buffer_size: int = 2048):
@@ -18,10 +19,9 @@ class Server:
         self._connections = {}
         self._connections_lock = Lock()
         self._match_lock = Lock()
-        self._match_results = {}
         self._match_sem = 0
-        self._match_number = 0
         self._database_lock = Lock()
+        self._players_ready = {"Red": 0, "Blue": 0}
 
     def turn_on(self):
         self._server_sock = create_server(
@@ -33,6 +33,8 @@ class Server:
 
     def shut_down(self):
         self._serving = False
+        self._connections["Database"].sendall("Shut down".encode())
+        self._server_sock.close()
 
     @property
     def connected_users(self):
@@ -47,23 +49,24 @@ class Server:
     def _accept(self):
         while self._serving:
             try:
-                conn, _ = self._server_sock.accept()                # establishes connection
+                conn, _ = self._server_sock.accept()  # establishes connection
             except timeout:
                 pass
-            else: # because of while loop, "second" time with the same conn value will go to else stmt (instead of try block)
+            else:  # because of while loop, "second" time with the same conn value will go to else stmt (instead of try block)
                 Thread(target=self._check_client_type, args=(conn,)).start()
 
     def _check_client_type(self, conn):
-        response = conn.recv(self._buffer_size).decode()
-        while True:
-            if response == "Player":
-                self._player_join(conn)
-                break
-            elif response == "Database":
-                self._database_join(conn)
-                break
-            else:
-                response = conn.recv(self._buffer_size).decode()
+        while self._serving:
+            response = conn.recv(self._buffer_size).decode()
+            while True:
+                if response == "Player":
+                    self._player_join(conn)
+                    break
+                elif response == "Database":
+                    self._database_join(conn)
+                    break
+                else:
+                    response = conn.recv(self._buffer_size).decode()
 
     def _database_join(self, conn):
         with self._connections_lock:
@@ -80,9 +83,18 @@ class Server:
                     if "Blue" in self._connections and "Red" in self._connections:
                         break
                 conn.sendall("Both players have joined".encode())
-                self._handle_player(conn, player)
-
+                while self._serving:
+                    self._handle_player(conn, player)
         conn.close()
+
+    def _add_champion(self, champ_str):
+        with self._database_lock:
+            conn = self._connections["Database"]
+            conn.sendall("Add champion".encode())
+            response = conn.recv(self._buffer_size).decode()
+            while response != "Ready for new champion":
+                response = conn.recv(self._buffer_size).decode()
+            conn.sendall(champ_str.encode())
 
     def _choose_team(self, conn, player):
         with self._player_lock:
@@ -102,21 +114,43 @@ class Server:
                 return False
 
     def _handle_player(self, conn, player):
-        while self._serving:
+        while True:
             response = conn.recv(self._buffer_size).decode()
-            while response != "Get champions":
-                response = self.conn.recv(self._buffer_size).decode()
-            conn.sendall(self._get_champion_info().encode())
-
-            while len(self._champion_choices[player]) < 2:
-                if choice := conn.recv(self._buffer_size).decode():
-                    self._choose_champions(conn, player, choice)
-                else:
+            match response:
+                case "Play":
+                    self._players_ready[player] = 1
+                    while True:
+                        if self._players_ready["Red"] == 1 and self._players_ready["Blue"] == 1:
+                            conn.sendall("Both players are ready".encode())
+                            break
                     break
+                case "Exit":
+                    del self._connections[player]
+                    if len(self._connections.keys()) < 2:
+                        self.shut_down()
+                    break
+                case "Add champion":
+                    conn.sendall("Ready for new champion".encode())
+                    response_champ = conn.recv(self._buffer_size).decode()
+                    self._add_champion(response_champ)
+                    continue
+                case _:
+                    continue
 
-            self._game_result(conn, player)
+        response = conn.recv(self._buffer_size).decode()
+        while response != "Get champions":
+            response = conn.recv(self._buffer_size).decode()
+        conn.sendall(self._get_champion_info().encode())
 
-        del self._connections[player]
+        while len(self._champion_choices[player]) < 2:
+            if choice := conn.recv(self._buffer_size).decode():
+                self._choose_champions(conn, player, choice)
+            else:
+                break
+
+        self._game_result(conn, player)
+        self._players_ready[player] = 0
+        self._champion_choices[player] = []
 
     def _choose_champions(self, conn, player, choice):
         champions = self._get_champions()
@@ -138,7 +172,6 @@ class Server:
                 self._champion_choices[player].append(choice)
         else:
             conn.sendall("Invalid champion choice".encode())
-
 
     def _get_match_history(self):
         with self._database_lock:
@@ -170,27 +203,21 @@ class Server:
 
         with self._match_lock:
 
-            if self._match_sem == 0:                # for "first" player
+            if self._match_sem == 0:  # for "first" player
                 champion_info_dict = TLT.champ_string_to_dict(self._get_champion_info())
                 match = TLT.match(self._champion_choices["Red"], self._champion_choices["Blue"], champion_info_dict)
                 self._send_match(match)
                 self._match_sem = 1
 
-            elif self._match_sem == 1:              # for "second" player
+            elif self._match_sem == 1:  # for "second" player
                 match = self._get_latest_match()
                 self._match_sem = 0
-            
+
         conn.sendall("Result ready".encode())
         response = conn.recv(self._buffer_size).decode()
         while response != "Ready for result":
             response = conn.recv(self._buffer_size).decode()
         conn.sendall(pickle.dumps(match))
-
-        response = conn.recv(self._buffer_size).decode()
-        while response != "Ready to shut down":
-            response = conn.recv(self._buffer_size).decode()
-
-        self.shut_down()
 
     def _get_other_player(self, player):
         for key in self._connections:

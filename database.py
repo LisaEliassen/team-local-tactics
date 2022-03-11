@@ -27,10 +27,17 @@ class Database:
                     continue
                 case "Add match to match history":
                     self._sock.sendall("Ready for match".encode())
-                    response_match = pickle.loads(self._sock.recv(self._buffer_size))
-                    self.add_match(response_match)
+                    if response_match := pickle.loads(self._sock.recv(self._buffer_size)):
+                        self.add_match(response_match)
                 case "Get latest match":
                     self._sock.sendall(pickle.dumps(self.get_latest_match()))
+                case "Add champion":
+                    self._sock.sendall("Ready for new champion".encode())
+                    if response_champion := self._sock.recv(self._buffer_size).decode():
+                        self.add_champion(response_champion, 'some_champs.txt')
+                case "Shut down":
+                    self._sock.close()
+                    break
                 case _:
                     continue
 
@@ -55,6 +62,12 @@ class Database:
 
     def get_latest_match(self):
         return self._match_history[len(self._match_history)]
+
+    def add_champion(self, champion_str, filename):
+        with open(filename, 'a') as f:
+            f.write('\n'+champion_str)
+        f.close()
+
 
 if __name__ == "__main__":
     server = environ.get("SERVER", "localhost")
