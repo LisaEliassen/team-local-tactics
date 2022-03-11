@@ -6,6 +6,20 @@ from champlistloader import load_some_champs
 from core import Champion, Match, Shape, Team
 
 
+def parse_champ(champ_text: str) -> Champion:
+    name, rock, paper, scissors = champ_text.split(sep=',')
+    return Champion(name, float(rock), float(paper), float(scissors))
+
+
+def champ_string_to_dict(champ_str):
+    champion_list = champ_str.split('|')
+    champ_dict = {}
+    for elem in champion_list:
+        champ = parse_champ(elem)
+        champ_dict[champ.name] = champ
+    return champ_dict
+
+
 def print_available_champs(champions: dict[Champion]) -> None:
     # Create a table containing available champions
     available_champs = Table(title='Available champions')
@@ -85,9 +99,7 @@ def print_match_summary(match: Match) -> None:
         print('\nDraw :expressionless:')
 
 
-def match(red, blue) -> Match:
-    champions = load_some_champs()
-
+def match(red, blue, champions) -> Match:
     # Match
     match = Match(
         Team([champions[name] for name in red]),
@@ -96,5 +108,3 @@ def match(red, blue) -> Match:
     match.play()
 
     return match
-
-    #print_match_summary(match)

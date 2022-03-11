@@ -1,8 +1,9 @@
 from os import environ
 from socket import create_connection, timeout
-from champlistloader import load_some_champs
 from rich import print
 import TLT
+import pickle
+
 
 
 class Client:
@@ -48,7 +49,11 @@ class Client:
         return False
 
     def _choose_champions(self) -> bool:
-        champions = load_some_champs()
+        self._sock.sendall("Get champions".encode())
+        if response := self._sock.recv(self._buffer_size).decode():
+            champions = response
+
+        champions = TLT.champ_string_to_dict(champions)
         available_champs = TLT.available_champs(champions)
         welcome_msg = '\n' \
                       + 'Welcome to [bold yellow]Team Local Tactics[/bold yellow]!' \
@@ -57,7 +62,6 @@ class Client:
                       + '\n'
         print(welcome_msg)
         print(available_champs)
-        print(champions)
 
         # CHAMPION CHOICE 1:
         while (choice1 := input("Champion choice 1 of 2:")).lower() != ".exit":
@@ -68,10 +72,12 @@ class Client:
                 # CHAMPION CHOICE 2:
                 while (choice2 := input("Champion choice 2 of 2:")).lower() != ".exit":
                     self._sock.sendall(choice2.encode())
+                    response = self._sock.recv(self._buffer_size).decode()
                     if response == "Valid champion choice":
                         return True
                     elif response == "Invalid champion choice":
                         print("Invalid champion or champion is already taken.")
+                return False
 
             elif response == "Invalid champion choice":
                 print("Invalid champion or champion is already taken.")
@@ -79,9 +85,23 @@ class Client:
 
     def _game_result(self):
         response = self._sock.recv(self._buffer_size).decode()
-        while response == "Result ready":
-            pass
+        while response != "Result ready":
+            response = self._sock.recv(self._buffer_size).decode()
+        self._sock.sendall("Ready for result".encode())
+        if response := self._sock.recv(self._buffer_size):
+            match = pickle.loads(response)
 
+        print(f"\nMATCH RESULTS:\n")
+        TLT.print_match_summary(match)
+
+        #self._sock.sendall("Ready to shut down".encode())
+
+    """
+    def _match(self, match_str, champions, red, blue):
+        match = TLT.match(red, blue, champions)
+
+        return match
+    """
 
 if __name__ == "__main__":
     server = environ.get("SERVER", "localhost")
