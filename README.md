@@ -29,3 +29,7 @@ Step 4: Run client2.py
 - When a client has chosen to play, that client must wait until the
 other client also has chosen to play, before they both are able to choose champions.
 - Both clients must have chosen two champions before the match result is printed.
+
+
+#### P.S.
+All of us worked physically on the same machine, and therefore all the commits come from one user :)
