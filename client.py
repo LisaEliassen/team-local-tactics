@@ -19,7 +19,9 @@ class Client:
             while response != "Both players have joined":
                 response = self._sock.recv(self._buffer_size).decode()
             print(response)
+
             self._playing = True
+
             while self._playing:
                 self._lobby()
 
@@ -30,7 +32,7 @@ class Client:
                 while response != "Both players are ready":
                     response = self._sock.recv(self._buffer_size).decode()
 
-                self._playing = True
+                #self._playing = True
                 if self._choose_champions():
                     self._game_result()
                 else:

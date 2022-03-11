@@ -56,17 +56,16 @@ class Server:
                 Thread(target=self._check_client_type, args=(conn,)).start()
 
     def _check_client_type(self, conn):
-        while self._serving:
-            response = conn.recv(self._buffer_size).decode()
-            while True:
-                if response == "Player":
-                    self._player_join(conn)
-                    break
-                elif response == "Database":
-                    self._database_join(conn)
-                    break
-                else:
-                    response = conn.recv(self._buffer_size).decode()
+        response = conn.recv(self._buffer_size).decode()
+        while True:
+            if response == "Player":
+                self._player_join(conn)
+                break
+            elif response == "Database":
+                self._database_join(conn)
+                break
+            else:
+                response = conn.recv(self._buffer_size).decode()
 
     def _database_join(self, conn):
         with self._connections_lock:
